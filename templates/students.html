@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Students & Visitors{% endblock %}
+{% block content %}
+
+<h1>Enrolled Students ({{ students|length }})</h1>
+<p class="muted">Enroll new students with <code>python enroll_student.py</code> on the camera machine.</p>
+<div class="snapshot-grid">
+  {% for s in students %}
+  <div class="snapshot-item">
+    {% if s.thumb %}
+      <img src="{{ url_for('serve_student_photo', student_id=s.id, filename=s.thumb) }}" class="thumb">
+    {% else %}
+      <div class="thumb-placeholder">No photo</div>
+    {% endif %}
+    <strong>{{ s.name }}</strong>
+    <span class="muted">ID {{ s.id }} — {{ s.photo_count }} photo(s)</span>
+    <form method="post" action="{{ url_for('delete_student', student_id=s.id) }}"
+          onsubmit="return confirm('Remove {{ s.name }} and all their face data? This retrains the model.');">
+      <button type="submit" class="btn-reject">Remove</button>
+    </form>
+  </div>
+  {% else %}
+  <p class="muted">No students enrolled yet.</p>
+  {% endfor %}
+</div>
+
+<h1>Active Visitors ({{ visitors|length }})</h1>
+<p class="muted">Enroll temporary visitor access with <code>python visitor_enroll.py</code>. Access auto-expires — this list only shows currently active visitors.</p>
+<div class="snapshot-grid">
+  {% for v in visitors %}
+  <div class="snapshot-item">
+    {% if v.thumb %}
+      <img src="{{ url_for('serve_visitor_photo', visitor_id=v.id, filename=v.thumb) }}" class="thumb">
+    {% else %}
+      <div class="thumb-placeholder">No photo</div>
+    {% endif %}
+    <strong>{{ v.name }}</strong>
+    <span class="muted">{{ v.note }}</span>
+    <span class="muted">Expires: {{ v.expires_at }}</span>
+    <form method="post" action="{{ url_for('revoke_visitor', visitor_id=v.id) }}"
+          onsubmit="return confirm('Revoke {{ v.name }}\'s access now?');">
+      <button type="submit" class="btn-reject">Revoke now</button>
+    </form>
+  </div>
+  {% else %}
+  <p class="muted">No active visitors.</p>
+  {% endfor %}
+</div>
+
+{% endblock %}

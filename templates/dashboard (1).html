@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+
+<h1>Dashboard - {{ today }}</h1>
+<p class="muted" id="live-status">🔊 Live alerts ON — keep this tab open to hear guard calls and unregistered-face alarms as they happen.</p>
+
+<section class="card">
+  <h2>Call for Guard</h2>
+  <form method="post" action="{{ url_for('call_guard') }}" class="inline-form">
+    <input type="text" name="note" placeholder="Optional note (e.g. 'someone at the gate')">
+    <button type="submit" class="btn-danger">Call Guard Now</button>
+  </form>
+  {% if guard_calls %}
+  <details>
+    <summary>Recent guard calls ({{ guard_calls|length }})</summary>
+    <table>
+      <tr><th>Date</th><th>Time</th><th>Source</th><th>Note</th></tr>
+      {% for row in guard_calls %}
+      <tr><td>{{ row.date }}</td><td>{{ row.time }}</td><td>{{ row.source }}</td><td>{{ row.note }}</td></tr>
+      {% endfor %}
+    </table>
+  </details>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Pending Review — Uncertain Matches ({{ review_rows|length }})</h2>
+  <p class="muted">These faces were a possible-but-not-confident match. Confirm who they are.</p>
+  {% if review_rows %}
+    {% for row in review_rows %}
+    <div class="review-item">
+      <img src="{{ url_for('serve_review_snapshot', filename=row.snapshot_filename) }}" class="thumb">
+      <div>
+        <strong>Possibly: {{ row.guessed_name }}</strong> (ID {{ row.guessed_id }})<br>
+        <span class="muted">Confidence score: {{ row.confidence }} (lower = closer match) — {{ row.time }}</span>
+      </div>
+      <div class="review-actions">
+        <form method="post" action="{{ url_for('review_action', entry_id=row.entry_id, action='approve') }}">
+          <button type="submit" class="btn-approve">Yes, mark present</button>
+        </form>
+        <form method="post" action="{{ url_for('review_action', entry_id=row.entry_id, action='reject') }}">
+          <button type="submit" class="btn-reject">No, not them</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <p class="muted">Nothing pending.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Today's Attendance ({{ attendance_rows|length }})</h2>
+  {% if attendance_rows %}
+  <table>
+    <tr><th>ID</th><th>Name</th><th>Type</th><th>Time</th><th>Shirt Color</th></tr>
+    {% for row in attendance_rows %}
+    <tr>
+      <td>{{ row.student_id }}</td><td>{{ row.name }}</td><td>{{ row.type }}</td>
+      <td>{{ row.time }}</td><td>{{ row.shirt_color }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+    <p class="muted">No one marked present yet today.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Recent Unregistered-Face Alerts ({{ unregistered_rows|length }})</h2>
+  {% if unregistered_rows %}
+    <div class="snapshot-grid">
+    {% for row in unregistered_rows %}
+      <div class="snapshot-item">
+        <img src="{{ url_for('serve_unregistered_snapshot', filename=row.snapshot_filename) }}" class="thumb">
+        <span class="muted">{{ row.date }} {{ row.time }}</span>
+      </div>
+    {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">No unregistered-face alerts.</p>
+  {% endif %}
+</section>
+
+<script>
+// Live alert polling: this is what makes "Call for Guard" and the
+// unregistered-face alarm actually NOTIFY someone in real time -
+// whoever has this dashboard tab open hears a beep the moment a new
+// guard call or unregistered-face alert is logged, without needing
+// to refresh the page manually.
+let lastGuardCalls = {{ initial_guard_call_count }};
+let lastUnregistered = {{ initial_unregistered_count }};
+
+function playBeep(frequency, duration) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = frequency;
+    osc.type = "sine";
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+  } catch (e) {
+    console.log("Audio alert failed (browser may require a click first):", e);
+  }
+}
+
+function playGuardCallAlert() {
+  // Two urgent high beeps
+  playBeep(880, 0.2);
+  setTimeout(() => playBeep(880, 0.2), 300);
+}
+
+function playUnregisteredAlert() {
+  // One lower, longer tone
+  playBeep(440, 0.4);
+}
+
+async function pollAlerts() {
+  try {
+    const res = await fetch("{{ url_for('api_alert_counts') }}");
+    const data = await res.json();
+
+    if (data.guard_calls > lastGuardCalls) {
+      playGuardCallAlert();
+      document.title = "🔴 GUARD CALLED - Attendance System";
+    }
+    if (data.unregistered > lastUnregistered) {
+      playUnregisteredAlert();
+      document.title = "⚠ Unregistered Face - Attendance System";
+    }
+    if (data.guard_calls > lastGuardCalls || data.unregistered > lastUnregistered) {
+      // Reload the page content after a short delay so new rows show up
+      setTimeout(() => window.location.reload(), 1500);
+    }
+
+    lastGuardCalls = data.guard_calls;
+    lastUnregistered = data.unregistered;
+  } catch (e) {
+    console.log("Alert polling error:", e);
+  }
+}
+
+setInterval(pollAlerts, 4000); // check every 4 seconds
+</script>
+
+{% endblock %}

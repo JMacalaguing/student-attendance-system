@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+
+# Runtime records and biometric data
+attendance/
+data/
+student_images/
+visitor_images/
+trainer/
+review_snapshots/
+unregistered_snapshots/
+
+# Local logs
+*.log

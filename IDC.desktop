@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=IDC
+Comment=Start the attendance and security monitoring system
+Exec=lxterminal -e python3 /home/ecnhs/innovation/attendance_project/attendance_project/launch_system.py
+Icon=camera-web
+Terminal=false
+Categories=Utility;
